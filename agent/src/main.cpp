@@ -44,11 +44,12 @@ std::string genToken() {
 void printHelp(const char* prog) {
   std::printf(
       "RemoteBuilder agent %s\n"
-      "usage: %s [--port N] [--token T] [--root DIR] [--name NAME]\n"
+      "usage: %s [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N]\n"
       "  --port   HTTP listen port (default 7333)\n"
       "  --token  auth token (default: auto-generate, stored in %%LOCALAPPDATA%%\\rb-agent\\token.txt)\n"
       "  --root   workspaces root (default: %%LOCALAPPDATA%%\\rb-agent\\workspaces)\n"
-      "  --name   machine name reported to the coordinator (default: hostname)\n",
+      "  --name   machine name reported to the coordinator (default: hostname)\n"
+      "  --maxjobs concurrent jobs (default 2)\n",
       kAgentVersion, prog);
 }
 
@@ -57,6 +58,7 @@ void printHelp(const char* prog) {
 int main(int argc, char** argv) {
   std::string tokenArg, rootArg, nameArg;
   int port = 7333;
+  int maxJobs = 2;
   for (int i = 1; i < argc; i++) {
     const std::string a = argv[i];
     const auto next = [&](const char* what) -> std::string {
@@ -70,6 +72,7 @@ int main(int argc, char** argv) {
     else if (a == "--token") tokenArg = next("--token");
     else if (a == "--root") rootArg = next("--root");
     else if (a == "--name") nameArg = next("--name");
+    else if (a == "--maxjobs") maxJobs = std::atoi(next("--maxjobs").c_str());
     else if (a == "--help" || a == "-h") { printHelp(argv[0]); return 0; }
     else {
       std::fprintf(stderr, "unknown argument: %s\n", a.c_str());
@@ -83,6 +86,7 @@ int main(int argc, char** argv) {
   }
 
   g_state.port = port;
+  g_state.maxJobs = maxJobs < 1 ? 1 : maxJobs;
   g_state.machineName = nameArg.empty() ? hostname() : nameArg;
   g_state.root = rootArg.empty() ? (localAppData() + "\\rb-agent\\workspaces") : rootArg;
   ensureDir(std::filesystem::u8path(g_state.root));

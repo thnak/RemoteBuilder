@@ -1,7 +1,10 @@
 #pragma once
 #include <atomic>
 #include <filesystem>
+#include <memory>
 #include <string>
+
+#include "jobs.hpp"
 
 namespace rb {
 
@@ -10,6 +13,8 @@ struct AgentState {
   std::string token;
   std::string root;
   int port = 7333;
+  int maxJobs = 2;
+  std::unique_ptr<JobRunner> jobs;
   std::atomic<int> runningJobs{0};
   std::atomic<int> queuedJobs{0};
   std::atomic<int> cpuLoadPct{0};
@@ -29,5 +34,8 @@ std::string localAppDataDir();
 std::string randomHexToken();
 std::string readFileToString(const std::filesystem::path& p);
 void writeStringToFile(const std::filesystem::path& p, const std::string& data);
+
+bool relPathSafe(const std::string& rel);
+std::string nowIso();
 
 }  // namespace rb

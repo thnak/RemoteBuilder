@@ -3,9 +3,11 @@
 #include <httplib.h>
 
 #include <cstdio>
+#include <cstdlib>
 
 #include "agent.hpp"
 #include "inventory.hpp"
+#include "json.hpp"
 #include "tar.hpp"
 
 namespace rb {
@@ -46,6 +48,7 @@ struct WsGuard {
 }  // namespace
 
 int runServer() {
+  g_state.jobs = std::make_unique<JobRunner>(g_state.maxJobs);
   httplib::Server svr;
   svr.set_payload_max_length(static_cast<size_t>(8) * 1024 * 1024 * 1024);
   svr.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
@@ -150,10 +153,90 @@ int runServer() {
                                : "{\"removed\":true}");
              });
 
-  svr.Post("/jobs", notImplemented);
-  svr.Get(R"(/jobs/([^/]+))", notImplemented);
-  svr.Get(R"(/jobs/([^/]+)/log)", notImplemented);
-  svr.Delete(R"(/jobs/([^/]+))", notImplemented);
+  svr.Post("/jobs", [](const httplib::Request& req, httplib::Response& res,
+                         const httplib::ContentReader& content_reader) {
+    const std::string ws = param(req, "ws");
+    if (!validateWsName(ws)) {
+      jsonResponse(res, 400, "{\"error\":\"bad workspace name\"}");
+      return;
+    }
+    std::string body;
+    const bool ok = content_reader([&](const char* data, size_t len) {
+      body.append(data, len);
+      return true;
+    });
+    if (!ok) {
+      jsonResponse(res, 400, "{\"error\":\"body read failed\"}");
+      return;
+    }
+    JsonValue request;
+    std::string err;
+    if (!parseJson(body, request, err)) {
+      jsonResponse(res, 400,
+                   "{\"error\":\"bad json: " + jsonEscape(err) + "\"}");
+      return;
+    }
+    const std::string jobId = g_state.jobs->enqueue(ws, request, err);
+    if (jobId.empty()) {
+      jsonResponse(res, 400,
+                   "{\"error\":\"" + jsonEscape(err) + "\"}");
+      return;
+    }
+    jsonResponse(res, 201,
+                 "{\"jobId\":\"" + jobId +
+                     "\",\"status\":\"queued\"}");
+  });
+
+  svr.Get(R"(/jobs/([^/]+))",
+          [](const httplib::Request& req, httplib::Response& res) {
+            const std::string id = req.matches[1];
+            JsonValue out;
+            std::string err;
+            if (!g_state.jobs->get(id, out, err)) {
+              jsonResponse(res, 404,
+                           "{\"error\":\"" + jsonEscape(err) + "\"}");
+              return;
+            }
+            res.set_content(stringifyJson(out), "application/json");
+          });
+
+  svr.Get(R"(/jobs/([^/]+)/log)",
+          [](const httplib::Request& req, httplib::Response& res) {
+            const std::string id = req.matches[1];
+            const std::string offsetStr = param(req, "offset");
+            long long offset = 0;
+            if (!offsetStr.empty()) {
+              try {
+                offset = std::stoll(offsetStr);
+              } catch (...) {
+                jsonResponse(res, 400, "{\"error\":\"bad offset\"}");
+                return;
+              }
+            }
+            std::string data;
+            long long total = 0;
+            std::string err;
+            if (!g_state.jobs->readLog(id, offset, data, total, err)) {
+              jsonResponse(res, 400,
+                           "{\"error\":\"" + jsonEscape(err) + "\"}");
+              return;
+            }
+            res.set_header("X-RB-Log-Bytes", std::to_string(total));
+            res.set_content(data, "application/octet-stream");
+          });
+
+  svr.Delete(R"(/jobs/([^/]+))",
+             [](const httplib::Request& req, httplib::Response& res) {
+               const std::string id = req.matches[1];
+               std::string err;
+               if (!g_state.jobs->kill(id, err)) {
+                 jsonResponse(res, 404,
+                              "{\"error\":\"" + jsonEscape(err) + "\"}");
+                 return;
+               }
+               jsonResponse(res, 200, "{\"killed\":true}");
+             });
+
   svr.Post("/fetch-tar", notImplemented);
 
   std::printf("[rbagent] listening on 0.0.0.0:%d  (machine=%s, root=%s)\n", g_state.port,
