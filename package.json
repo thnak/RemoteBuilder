@@ -1,24 +1,48 @@
 {
   "name": "remotebuilder",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "node --import tsx --test mcp/tests/tar.test.ts mcp/tests/sync.test.ts mcp/tests/gitignore.test.ts",
-    "e2e": "node --import tsx mcp/tests/e2e.ts",
-    "start": "node mcp/dist/index.js"
+  "description": "Offload builds and tests to Windows machines on your LAN, from your MCP client.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
   },
   "bin": {
     "remotebuilder": "mcp/dist/index.js"
   },
+  "files": [
+    "mcp/dist",
+    "agent/src",
+    "agent/build.ps1",
+    "agent/third_party",
+    "PROTOCOL.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test mcp/tests/tar.test.ts mcp/tests/sync.test.ts mcp/tests/gitignore.test.ts",
+    "e2e": "node --import tsx mcp/tests/e2e.ts",
+    "start": "node mcp/dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "remotebuilder": "file:C:/Users/thanh/AppData/Local/Temp/commandcode/D--GitSrc-RemoteBuilder/2aff5e8c-6101-45a8-9098-5d9e03bf8050/scratchpad/remotebuilder-0.1.0.tgz",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
-  }
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thnak/RemoteBuilder.git"
+  },
+  "keywords": [],
+  "bugs": {
+    "url": "https://github.com/thnak/RemoteBuilder/issues"
+  },
+  "homepage": "https://github.com/thnak/RemoteBuilder#readme"
 }
