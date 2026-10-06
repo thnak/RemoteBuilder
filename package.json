@@ -6,7 +6,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test mcp/tests/tar.test.ts mcp/tests/sync.test.ts mcp/tests/gitignore.test.ts",
-    "e2e": "node mcp/tests/e2e.mjs"
+    "e2e": "node --import tsx mcp/tests/e2e.ts",
+    "start": "node mcp/dist/index.js"
+  },
+  "bin": {
+    "remotebuilder": "mcp/dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

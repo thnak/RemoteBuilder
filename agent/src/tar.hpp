@@ -12,6 +12,13 @@ struct ManifestEntry {
   std::string h;
 };
 
+struct PackEntry {
+  std::string path;
+  std::string data;
+};
+
+std::string packTar(const std::vector<PackEntry>& entries);
+
 struct TarStats {
   int appliedFiles = 0;
   long long appliedBytes = 0;

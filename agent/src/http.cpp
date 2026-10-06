@@ -2,6 +2,7 @@
 
 #include <httplib.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 
@@ -237,7 +238,85 @@ int runServer() {
                jsonResponse(res, 200, "{\"killed\":true}");
              });
 
-  svr.Post("/fetch-tar", notImplemented);
+  svr.Post("/fetch-tar", [](const httplib::Request& req,
+                                httplib::Response& res,
+                                const httplib::ContentReader& content_reader) {
+    const std::string ws = param(req, "ws");
+    if (!validateWsName(ws)) {
+      jsonResponse(res, 400, "{\"error\":\"bad workspace name\"}");
+      return;
+    }
+    std::string body;
+    const bool ok = content_reader([&](const char* data, size_t len) {
+      body.append(data, len);
+      return true;
+    });
+    if (!ok) {
+      jsonResponse(res, 400, "{\"error\":\"body read failed\"}");
+      return;
+    }
+    JsonValue request;
+    std::string err;
+    if (!parseJson(body, request, err)) {
+      jsonResponse(res, 400,
+                   "{\"error\":\"bad json: " + jsonEscape(err) + "\"}");
+      return;
+    }
+    const JsonValue* paths = request.find("paths");
+    if (!paths || paths->type != JsonValue::Array ||
+        paths->arrV.empty()) {
+      jsonResponse(res, 400, "{\"error\":\"paths must be a non-empty array\"}");
+      return;
+    }
+    WsGuard guard;
+    guard.ws = ws;
+    if (!acquireWs(ws)) {
+      jsonResponse(res, 409, "{\"error\":\"workspace busy (job running)\"}");
+      return;
+    }
+    guard.held = true;
+    const std::filesystem::path wsDir = wsRoot(ws);
+    std::vector<PackEntry> entries;
+    for (const JsonValue& p : paths->arrV) {
+      if (p.type != JsonValue::String || !relPathSafe(p.strV)) {
+        jsonResponse(res, 400, "{\"error\":\"unsafe path in paths\"}");
+        return;
+      }
+      const std::filesystem::path target =
+          wsDir / std::filesystem::u8path(p.strV);
+      if (std::filesystem::is_directory(target)) {
+        std::vector<std::filesystem::path> files;
+        std::error_code ec;
+        for (std::filesystem::recursive_directory_iterator
+                 it(target, ec),
+             end;
+             it != end; it.increment(ec)) {
+          if (ec) break;
+          if (it->is_regular_file()) {
+            files.push_back(it->path());
+          }
+        }
+        std::sort(files.begin(), files.end());
+        for (const std::filesystem::path& f : files) {
+          std::string rel =
+              std::filesystem::relative(f, wsDir, ec).u8string();
+          if (ec) continue;
+          for (char& c : rel) {
+            if (c == '\\') c = '/';
+          }
+          entries.push_back({rel, readFileToString(f)});
+        }
+      } else if (std::filesystem::is_regular_file(target)) {
+        entries.push_back({p.strV, readFileToString(target)});
+      } else {
+        jsonResponse(res, 404,
+                     "{\"error\":\"path not found: " +
+                         jsonEscape(p.strV) + "\"}");
+        return;
+      }
+    }
+    res.set_content(packTar(entries), "application/octet-stream");
+  });
 
   std::printf("[rbagent] listening on 0.0.0.0:%d  (machine=%s, root=%s)\n", g_state.port,
               g_state.machineName.c_str(), g_state.root.c_str());

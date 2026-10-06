@@ -1,5 +1,6 @@
 #include "tar.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <fstream>
@@ -420,6 +421,95 @@ bool TarApplier::finish() {
   writeStringToFile(manifestPath, manifestBuf_);
   stats_.manifestFiles = static_cast<int>(entries.size());
   return true;
+}
+
+namespace {
+
+void writeOctalField(char* field, size_t digits, long long value) {
+  std::string s;
+  long long v = value;
+  if (v == 0) s = "0";
+  while (v > 0) {
+    s += static_cast<char>('0' + (v % 8));
+    v /= 8;
+  }
+  std::reverse(s.begin(), s.end());
+  if (s.size() > digits) s = s.substr(s.size() - digits);
+  while (s.size() < digits) s.insert(s.begin(), '0');
+  for (size_t i = 0; i < digits; i++) field[i] = s[i];
+  field[digits] = 0;
+}
+
+void writeStrField(char* field, size_t len, const std::string& value) {
+  const size_t n = value.size() < len ? value.size() : len;
+  memcpy(field, value.data(), n);
+  if (n < len) field[n] = 0;
+}
+
+void splitTarPath(const std::string& rel, std::string& name,
+                  std::string& prefix) {
+  if (rel.size() <= 100) {
+    name = rel;
+    prefix.clear();
+    return;
+  }
+  size_t idx = rel.find_last_of('/');
+  while (idx != std::string::npos) {
+    const std::string p = rel.substr(0, idx);
+    const std::string n = rel.substr(idx + 1);
+    if (n.size() > 0 && n.size() <= 100 && p.size() <= 155) {
+      name = n;
+      prefix = p;
+      return;
+    }
+    idx = rel.find_last_of('/', idx - 1);
+  }
+  name = rel;
+  prefix.clear();
+}
+
+std::string packHeader(const PackEntry& e) {
+  std::string header(512, '\0');
+  std::string name;
+  std::string prefix;
+  splitTarPath(e.path, name, prefix);
+  writeStrField(&header[0], 100, name);
+  writeOctalField(&header[100], 7, 0644);
+  writeOctalField(&header[108], 7, 0);
+  writeOctalField(&header[116], 7, 0);
+  writeOctalField(&header[124], 11,
+                  static_cast<long long>(e.data.size()));
+  writeOctalField(&header[136], 11, 0);
+  for (size_t i = 148; i < 156; i++) header[i] = ' ';
+  header[156] = '0';
+  memcpy(&header[257], "ustar", 5);
+  header[262] = 0;
+  memcpy(&header[263], "00", 2);
+  writeStrField(&header[265], 32, "remotebuilder");
+  writeStrField(&header[297], 32, "remotebuilder");
+  writeOctalField(&header[329], 7, 0);
+  writeOctalField(&header[337], 7, 0);
+  writeStrField(&header[345], 155, prefix);
+  long long sum = 0;
+  for (char c : header) sum += static_cast<unsigned char>(c);
+  writeOctalField(&header[148], 6, sum);
+  header[154] = 0;
+  header[155] = ' ';
+  return header;
+}
+
+}  // namespace
+
+std::string packTar(const std::vector<PackEntry>& entries) {
+  std::string out;
+  for (const PackEntry& e : entries) {
+    out += packHeader(e);
+    out += e.data;
+    const size_t pad = (512 - (e.data.size() % 512)) % 512;
+    out.append(pad, '\0');
+  }
+  out.append(1024, '\0');
+  return out;
 }
 
 }  // namespace rb
