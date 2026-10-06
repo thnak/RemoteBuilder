@@ -392,8 +392,14 @@ bool TarApplier::feed(const char* data, size_t len) {
             stats_.appliedFiles++;
             stats_.appliedBytes += curSize_;
           }
-          stage_ = Stage::Header;
-          headerFilled_ = 0;
+          const long long pad = (512 - (curSize_ % 512)) % 512;
+          if (pad > 0) {
+            skipRemaining_ = pad;
+            stage_ = Stage::Skip;
+          } else {
+            stage_ = Stage::Header;
+            headerFilled_ = 0;
+          }
         }
         break;
       }

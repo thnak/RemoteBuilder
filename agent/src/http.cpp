@@ -2,9 +2,7 @@
 
 #include <httplib.h>
 
-#include <atomic>
 #include <cstdio>
-#include <memory>
 
 #include "agent.hpp"
 #include "inventory.hpp"
