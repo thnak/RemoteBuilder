@@ -1,47 +1,81 @@
 # RemoteBuilder
 
-Offload CPU-heavy work (builds, tests, anything) to other Windows machines on
+Offload CPU-heavy work (builds, tests, anything) to Windows machines on
 your LAN, from inside your editor via MCP.
 
 Two components:
 
-- **MCP server** (TypeScript, runs where Command Code runs) — exposes the
-  `sync`, `exec`, `get_result`, `kill`, `fetch_artifacts`, `list_peers` tools.
-  The client side computes all file hashes and drives sync diffs.
-- **Agent daemon** (`rbagent.exe`, C++, Windows-only) — runs on each build
-  machine. Token-authed HTTP, streaming tar workspace sync, Windows Job
-  Object process runner (kill takes down the whole process tree), per-job
-  log files with byte-offset tails.
+- **MCP server / client** (TypeScript) — runs wherever your MCP client
+  runs: **Linux, macOS, or Windows** (Node 18+). Exposes the
+  `sync`, `exec`, `get_result`, `kill`, `fetch_artifacts`, `list_peers`
+  tools. The client computes all file hashes and drives sync diffs.
+- **Agent daemon** (`rbagent.exe`, C++, **Windows-only**) — runs on each
+  build machine. Token-authed HTTP, streaming tar workspace sync, Windows
+  Job Object process runner (kill takes down the whole process tree),
+  per-job log files with byte-offset tails.
 
-## Setup
+## Install
 
-Build the agent on each build machine:
+**On your machine** (any OS with Node 18+):
 
-```powershell
-cd agent
-.\build.ps1        # auto-detects MSVC / g++ / clang
 ```
+npm install -g remotebuilder
+```
+
+or run it straight from npm without installing:
+
+```
+npx -y remotebuilder
+```
+
+Add it to your MCP client (Command Code or Claude Code):
+
+```
+cmdc mcp add remotebuilder -- npx -y remotebuilder
+claude mcp add remotebuilder -- npx -y remotebuilder
+```
+
+For the beta channel: `npx -y remotebuilder@beta` / `remotebuilder@beta`.
+
+**On each Windows build machine** — the agent ships as a **prebuilt
+binary**, no compiler needed:
+
+- Download `rbagent.exe` from the
+  [GitHub Releases](https://github.com/thnak/RemoteBuilder/releases) page, or
+- On a Windows machine with Node: `npm install -g remotebuilder`, then
+  run `rbagent` (the package ships the exe as a `rbagent` command).
 
 First run generates a token and stores it in
 `%LOCALAPPDATA%\rb-agent\token.txt`, then listens on port 7333.
 
-Register peers on the MCP side in `~/.remotebuilder/peers.json` (or set
-`RB_PEERS_FILE`):
+## Register a peer (one command)
 
-```json
-{
-  "peers": [
-    { "name": "build1", "host": "192.168.1.20", "port": 7333, "token": "..." },
-    { "name": "build2", "host": "192.168.1.21", "port": 7333, "token": "..." }
-  ]
-}
-```
-
-Run the MCP server over stdio (add to your MCP client config):
+On the build machine, run the agent in pairing mode:
 
 ```
-node <repo>/mcp/dist/index.js
+rbagent --pair
 ```
+
+On your machine, pair with it (fetches the token over the LAN and writes
+your peers file automatically):
+
+```
+remotebuilder pair build1 192.168.1.20
+# custom port:  remotebuilder pair build1 192.168.1.20 --port 7334
+```
+
+That's it — `~/.remotebuilder/peers.json` now holds
+`{name, host, port, token}` for the peer.
+
+Alternatives:
+
+- `remotebuilder setup` — prompt for name/host/port/token manually
+  (copy the token the agent prints on first run)
+- `remotebuilder list` — show configured peers
+- `RB_PEERS_FILE` env var — use a different peers file
+
+Pairing mode only opens `GET /pair` on the LAN while it runs; stop it
+(Ctrl+C) when done. Without `--pair` every endpoint requires the token.
 
 ## Tools
 
@@ -72,7 +106,7 @@ queued jobs, then CPU load).
 ## Agent CLI
 
 ```
-rbagent.exe [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N]
+rbagent.exe [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N] [--pair]
 ```
 
 - `--port` HTTP listen port (default 7333)
@@ -80,6 +114,7 @@ rbagent.exe [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N]
 - `--root` workspaces root (default `%LOCALAPPDATA%\rb-agent\workspaces`)
 - `--name` machine name reported to the coordinator
 - `--maxjobs` concurrent jobs (default 2)
+- `--pair` expose unauthenticated `GET /pair` for one-command registration
 
 See [PROTOCOL.md](PROTOCOL.md) for the HTTP protocol.
 
@@ -90,4 +125,11 @@ npm install --include=dev
 npm run build     # tsc -> mcp/dist
 npm test          # 22 unit tests (tar, sync, gitignore)
 npm run e2e       # two-agent e2e on ports 7333/7334
+```
+
+Rebuild the agent (auto-detects MSVC / clang++ / g++):
+
+```powershell
+cd agent
+.\build.ps1       # outputs agent/build/rbagent.exe
 ```

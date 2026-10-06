@@ -14,6 +14,7 @@ struct AgentState {
   std::string root;
   int port = 7333;
   int maxJobs = 2;
+  bool pairMode = false;
   std::unique_ptr<JobRunner> jobs;
   std::atomic<int> runningJobs{0};
   std::atomic<int> queuedJobs{0};

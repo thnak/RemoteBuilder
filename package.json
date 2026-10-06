@@ -9,10 +9,12 @@
     "node": ">=18"
   },
   "bin": {
-    "remotebuilder": "mcp/dist/index.js"
+    "remotebuilder": "mcp/dist/index.js",
+    "rbagent": "agent/build/rbagent.exe"
   },
   "files": [
     "mcp/dist",
+    "agent/build/rbagent.exe",
     "agent/src",
     "agent/build.ps1",
     "agent/third_party",
@@ -27,7 +29,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "remotebuilder": "file:C:/Users/thanh/AppData/Local/Temp/commandcode/D--GitSrc-RemoteBuilder/2aff5e8c-6101-45a8-9098-5d9e03bf8050/scratchpad/remotebuilder-0.1.0.tgz",
     "zod": "^3.23.0"
   },
   "devDependencies": {

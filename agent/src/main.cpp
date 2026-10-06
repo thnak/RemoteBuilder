@@ -44,12 +44,13 @@ std::string genToken() {
 void printHelp(const char* prog) {
   std::printf(
       "RemoteBuilder agent %s\n"
-      "usage: %s [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N]\n"
+      "usage: %s [--port N] [--token T] [--root DIR] [--name NAME] [--maxjobs N] [--pair]\n"
       "  --port   HTTP listen port (default 7333)\n"
       "  --token  auth token (default: auto-generate, stored in %%LOCALAPPDATA%%\\rb-agent\\token.txt)\n"
       "  --root   workspaces root (default: %%LOCALAPPDATA%%\\rb-agent\\workspaces)\n"
       "  --name   machine name reported to the coordinator (default: hostname)\n"
-      "  --maxjobs concurrent jobs (default 2)\n",
+      "  --maxjobs concurrent jobs (default 2)\n"
+      "  --pair   expose unauthenticated GET /pair (token handoff for `remotebuilder pair`)\n",
       kAgentVersion, prog);
 }
 
@@ -73,6 +74,7 @@ int main(int argc, char** argv) {
     else if (a == "--root") rootArg = next("--root");
     else if (a == "--name") nameArg = next("--name");
     else if (a == "--maxjobs") maxJobs = std::atoi(next("--maxjobs").c_str());
+    else if (a == "--pair") g_state.pairMode = true;
     else if (a == "--help" || a == "-h") { printHelp(argv[0]); return 0; }
     else {
       std::fprintf(stderr, "unknown argument: %s\n", a.c_str());
@@ -111,6 +113,9 @@ int main(int argc, char** argv) {
   std::printf("  port   : %d\n", g_state.port);
   std::printf("  root   : %s\n", g_state.root.c_str());
   std::printf("  token  : %s%s\n", token.c_str(), generated ? " (generated)" : "");
+  if (g_state.pairMode) {
+    std::printf("  PAIRING MODE: GET /pair is open on the LAN until you stop this process\n");
+  }
   std::fflush(stdout);
   return runServer();
 }

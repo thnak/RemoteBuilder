@@ -53,6 +53,9 @@ int runServer() {
   httplib::Server svr;
   svr.set_payload_max_length(static_cast<size_t>(8) * 1024 * 1024 * 1024);
   svr.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
+    if (g_state.pairMode && req.path == "/pair") {
+      return httplib::Server::HandlerResponse::Unhandled;
+    }
     if (!authOk(req)) {
       res.status = 401;
       res.set_content("{\"error\":\"unauthorized\"}", "application/json");
@@ -76,6 +79,16 @@ int runServer() {
         res.status = 500;
         res.set_content(msg, "application/json");
       });
+
+  if (g_state.pairMode) {
+    svr.Get("/pair", [](const httplib::Request&, httplib::Response& res) {
+      const std::string body =
+          "{\"name\":\"" + jsonEscape(g_state.machineName) +
+          "\",\"port\":" + std::to_string(g_state.port) +
+          ",\"token\":\"" + jsonEscape(g_state.token) + "\"}";
+      res.set_content(body, "application/json");
+    });
+  }
 
   svr.Get("/inventory", [](const httplib::Request&, httplib::Response& res) {
     res.set_content(buildInventoryJson(), "application/json");

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
-import path from "node:path";
+import path, { dirname } from "node:path";
 
 import { packTar, parseTar, type PackEntry, type ParsedEntry } from "./tar.js";
 import {
@@ -111,6 +111,7 @@ export async function savePeers(
   peers: Peer[],
   file = defaultPeersFile(),
 ): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify({ peers }, null, 2), "utf8");
 }
 

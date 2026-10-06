@@ -4,6 +4,19 @@ Base URL: `http://<host>:<port>`. Every request carries
 `Authorization: Bearer <token>`; missing or wrong tokens get `401`.
 JSON error bodies look like `{"error": "..."}`.
 
+## GET /pair
+
+Only served while the agent runs with `--pair`; **no auth required**.
+Returns the peer's registration info so `remotebuilder pair <name> <host>`
+can register it without copying tokens by hand:
+
+```json
+{ "name": "BUILD1", "port": 7333, "token": "<token>" }
+```
+
+Stop the agent (Ctrl+C) when pairing is done — `--pair` is the only way
+the token is ever served unauthenticated.
+
 ## GET /inventory
 
 Machine inventory:
