@@ -1,0 +1,8 @@
+.commandcode/
+node_modules/
+mcp/dist/
+agent/build/
+.remotebuilder-out/
+*.exe
+*.obj
+*.log
