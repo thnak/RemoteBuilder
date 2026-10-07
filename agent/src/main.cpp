@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <shlobj.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -9,6 +10,7 @@
 #include "agent.hpp"
 #include "http.hpp"
 #include "inventory.hpp"
+#include "service.hpp"
 
 using namespace rb;  // NOLINT(google-build-using-namespace)
 
@@ -18,6 +20,13 @@ std::string localAppData() {
   char buf[MAX_PATH];
   const DWORD n = GetEnvironmentVariableA("LOCALAPPDATA", buf, sizeof(buf));
   if (n > 0 && n < sizeof(buf)) return std::string(buf, n);
+  // Services (e.g. LocalSystem) do not have LOCALAPPDATA in their
+  // environment; fall back to the profile API so the token and default
+  // workspace root do not land in the service's working directory
+  // (C:\Windows\System32).
+  if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_LOCAL_APPDATA, nullptr,
+                                 SHGFP_TYPE_CURRENT, buf)))
+    return std::string(buf);
   return ".";
 }
 
@@ -117,5 +126,6 @@ int main(int argc, char** argv) {
     std::printf("  PAIRING MODE: GET /pair is open on the LAN until you stop this process\n");
   }
   std::fflush(stdout);
+  if (tryRunAsService()) return 0;
   return runServer();
 }

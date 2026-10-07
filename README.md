@@ -38,7 +38,28 @@ claude mcp add remotebuilder -- npx -y @thnak/remotebuilder
 For the beta channel: `npx -y @thnak/remotebuilder@beta` /
 `@thnak/remotebuilder@beta`.
 
-**On each Windows build machine** — the agent ships as a **prebuilt
+**On each Windows build machine** — the easiest path is the installer
+wizard, which does the whole job in one shot:
+
+**`RemoteBuilder-Setup.exe`** (from the
+[GitHub Releases](https://github.com/thnak/RemoteBuilder/releases) page, or
+built locally with `agent\installer\build.ps1`) installs:
+
+- the agent (`rbagent.exe`) into `%ProgramFiles%\RemoteBuilder`
+- a **Windows service** `RemoteBuilderAgent` — auto-start, survives reboots
+- a firewall rule for TCP 7333
+- the **WinUI 3 tray monitor**, launched at login from the Startup folder
+
+The agent generates its own token on first start; the installer mirrors it
+to `%LOCALAPPDATA%\rb-agent\token.txt` and
+`%ProgramData%\rb-agent\token.txt` so the tray monitor, the PowerShell
+fallback and `install-service.ps1` all agree.
+
+Run it, click through the wizard, done. Service setup is performed by
+`setup-service.ps1`, which ships inside the install directory — re-run it
+in an elevated PowerShell to repair or re-point the service.
+
+Manual alternative (no installer) — the agent ships as a **prebuilt
 binary**, no compiler needed:
 
 - Download `rbagent.exe` from the
@@ -64,16 +85,26 @@ registering a peer).
 
 ## System tray
 
-`agent/tray/tray.cmd` opens a tray monitor for the agent:
+The installer ships a **WinUI 3 tray monitor** (`agent\tray-app\`,
+self-contained — no runtime prerequisite). It starts with the session
+and gives you:
 
 - live inventory (cores, load, memory, running/queued jobs)
 - job list with status, exit code and log size (progress)
 - balloon alerts when a job starts or finishes
 - log tail pane for the selected job (auto-follows the log)
+- **Check for updates** and **Open releases page** menu items
 
-It talks to `127.0.0.1:7333` by default; configure with
-`RB_AGENT_HOST`, `RB_AGENT_PORT`, `RB_AGENT_TOKEN` (the token
-defaults to `%LOCALAPPDATA%\rb-agent\token.txt`).
+Left-click the icon to toggle the window; right-click for the menu.
+
+A dependency-free PowerShell fallback lives in `agent/tray/tray.cmd`
+(same features, no build step) for machines where you'd rather not run
+the installer.
+
+Both talk to `127.0.0.1:7333` by default; configure with
+`RB_AGENT_HOST`, `RB_AGENT_PORT`, `RB_AGENT_TOKEN` (the token defaults
+to `%LOCALAPPDATA%\rb-agent\token.txt`, then
+`%ProgramData%\rb-agent\token.txt`).
 
 ## Register a peer (one command)
 
@@ -125,25 +156,25 @@ remotebuilder update --install
 remotebuilder update --install --beta
 ```
 
-When a newer **agent** is available, download the new `rbagent.exe`
-from the [releases page](https://github.com/thnak/RemoteBuilder/releases),
-then restart it — either re-run `rbagent`, or (if installed as a
-service) stop any running `rbagent` and run the elevated installer
-again:
+When a newer **agent** is available, download the new
+`RemoteBuilder-Setup.exe` from the
+[releases page](https://github.com/thnak/RemoteBuilder/releases) and run
+it again — it replaces the files, recreates the service and restarts it.
+For a manual install, re-run `rbagent`, or stop any running `rbagent` and
+re-run the elevated `install-service.ps1`:
 
 ```powershell
 cd agent\service
 .\install-service.ps1
 ```
 
-The tray app also has **Check for updates** and
-**Open releases page** in its menu.
+The tray monitor also has **Check for updates** and
+**Open releases page** in its menu; it compares its own version against
+the latest GitHub release tag.
 
-The tray app itself lives in the repo checkout, so it updates
-with the repo: `git pull` in the RemoteBuilder directory, then
-restart `agent\tray\tray.cmd`. Its **Check for updates** menu
-item reports when a newer release is out (and compares the
-local repo version against the GitHub release tag).
+The WinUI tray monitor is a compiled exe, so it updates with the
+installer. The PowerShell fallback lives in the repo checkout — `git pull`
+in the RemoteBuilder directory, then restart `agent\tray\tray.cmd`.
 
 ## MCP tools
 
@@ -300,4 +331,12 @@ Rebuild the agent (auto-detects MSVC / clang++ / g++):
 ```powershell
 cd agent
 .\build.ps1       # outputs agent/build/rbagent.exe
+```
+
+Build the installer — publishes the WinUI tray monitor self-contained
+(needs the .NET 10 SDK) and compiles the wizard with Inno Setup 7:
+
+```powershell
+cd agent\installer
+.\build.ps1       # outputs agent/build/RemoteBuilder-Setup.exe
 ```
