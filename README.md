@@ -19,30 +19,32 @@ Two components:
 **On your machine** (any OS with Node 18+):
 
 ```
-npm install -g remotebuilder
+npm install -g @thnak/remotebuilder
 ```
 
 or run it straight from npm without installing:
 
 ```
-npx -y remotebuilder
+npx -y @thnak/remotebuilder
 ```
 
 Add it to your MCP client (Command Code or Claude Code):
 
 ```
-cmdc mcp add remotebuilder -- npx -y remotebuilder
-claude mcp add remotebuilder -- npx -y remotebuilder
+cmdc mcp add remotebuilder -- npx -y @thnak/remotebuilder
+claude mcp add remotebuilder -- npx -y @thnak/remotebuilder
 ```
 
-For the beta channel: `npx -y remotebuilder@beta` / `remotebuilder@beta`.
+For the beta channel: `npx -y @thnak/remotebuilder@beta` /
+`@thnak/remotebuilder@beta`.
 
 **On each Windows build machine** — the agent ships as a **prebuilt
 binary**, no compiler needed:
 
 - Download `rbagent.exe` from the
   [GitHub Releases](https://github.com/thnak/RemoteBuilder/releases) page, or
-- On a Windows machine with Node: `npm install -g remotebuilder`, then
+- On a Windows machine with Node:
+  `npm install -g @thnak/remotebuilder`, then
   run `rbagent` (the package ships the exe as a `rbagent` command).
 
 First run generates a token and stores it in
@@ -105,7 +107,7 @@ Pairing mode only opens `GET /pair` on the LAN while it runs; stop it
 The client runs on any OS and the agent on Windows, so a typical
 fleet is a Linux/macOS dev machine driving one or more Windows
 build machines — e.g. install the client on the Linux box
-(`npm i -g remotebuilder`), run the agent on each Windows box, then
+(`npm i -g @thnak/remotebuilder`), run the agent on each Windows box, then
 `remotebuilder pair <name> <windows-ip>` from the Linux box.
 
 ## Updating

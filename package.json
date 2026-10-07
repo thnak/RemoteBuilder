@@ -1,5 +1,5 @@
 {
-  "name": "remotebuilder",
+  "name": "@thnak/remotebuilder",
   "version": "0.1.0",
   "private": false,
   "type": "module",

@@ -96,7 +96,8 @@ $form.Add_FormClosing({
 $info = New-Object System.Windows.Forms.Label
 $info.Dock = "Top"
 $info.Height = 30
-$info.Font = New-Object System.Drawing.Font("Segoe UI", 10, "Bold")
+$info.Font = New-Object System.Drawing.Font(
+  "Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $info.Text = "connecting..."
 $form.Controls.Add($info)
 
@@ -160,7 +161,7 @@ function Check-Update {
   $lines = @()
   try {
     $reg = Invoke-RestMethod `
-      -Uri "https://registry.npmjs.org/remotebuilder" `
+      -Uri "https://registry.npmjs.org/@thnak%2Fremotebuilder" `
       -TimeoutSec 10 -UseBasicParsing
     $line = "client: npm latest $($reg.'dist-tags'.latest)"
     if ($reg.'dist-tags'.beta) {

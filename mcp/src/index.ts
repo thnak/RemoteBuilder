@@ -17,6 +17,7 @@ import {
   cmpVer,
   installUpdate,
   localVersion,
+  NPM_PACKAGE,
 } from "./update.js";
 
 const version = localVersion();
@@ -146,7 +147,7 @@ async function cmdUpdate(
       console.log(`  update available: ${target}`);
       if (install) {
         console.log(
-          `installing remotebuilder@${beta ? "beta" : "latest"} ...`,
+          `installing ${NPM_PACKAGE}@${beta ? "beta" : "latest"} ...`,
         );
         await installUpdate(beta ? "beta" : "latest");
         console.log("done - restart any running MCP clients");

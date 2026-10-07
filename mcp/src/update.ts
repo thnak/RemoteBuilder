@@ -4,8 +4,9 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 
-const NPM_PACKAGE = "remotebuilder";
-const REGISTRY_URL = `https://registry.npmjs.org/${NPM_PACKAGE}`;
+export const NPM_PACKAGE = "@thnak/remotebuilder";
+const REGISTRY_URL =
+  "https://registry.npmjs.org/@thnak%2Fremotebuilder";
 const RELEASES_API =
   "https://api.github.com/repos/thnak/RemoteBuilder/releases/latest";
 const RELEASES_PAGE =
