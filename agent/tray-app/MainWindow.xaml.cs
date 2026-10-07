@@ -24,8 +24,28 @@ public sealed partial class MainWindow : Window
     private bool _firstPoll = true;
     private bool _isVisible;
 
+    // The tray menu runs in H.NotifyIcon's PopupMenu mode, which renders a
+    // native Win32 menu and only invokes MenuFlyoutItem.Command - Click
+    // handlers on those items never fire.
+    public RelayCommand ShowHideCommand { get; }
+    public RelayCommand RefreshCommand { get; }
+    public RelayCommand CheckUpdatesCommand { get; }
+    public RelayCommand OpenReleasesCommand { get; }
+    public RelayCommand ShowSettingsCommand { get; }
+    public RelayCommand ExitCommand { get; }
+
     public MainWindow()
     {
+        ShowHideCommand = new RelayCommand(ToggleWindow);
+        RefreshCommand = new RelayCommand(
+            () => Refresh_Click(this, new RoutedEventArgs()));
+        CheckUpdatesCommand = new RelayCommand(
+            () => CheckUpdates_Click(this, new RoutedEventArgs()));
+        OpenReleasesCommand = new RelayCommand(
+            () => OpenReleases_Click(this, new RoutedEventArgs()));
+        ShowSettingsCommand = new RelayCommand(ShowSettingsFromTray);
+        ExitCommand = new RelayCommand(ExitApp);
+
         InitializeComponent();
         SetWindowSize(780, 580);
 
@@ -93,7 +113,12 @@ public sealed partial class MainWindow : Window
         _polling = true;
         try
         {
+            // The agent binds 0.0.0.0, so it is reachable on every interface;
+            // _agent.Host is only the address this tray uses to reach it.
             AgentText.Text = $"{_agent.Host}:{_agent.Port}";
+            ToolTipService.SetToolTip(AgentText,
+                $"The agent listens on all interfaces (0.0.0.0:{_agent.Port}). "
+                + $"This tray connects to it via {_agent.Host}:{_agent.Port}.");
 
             var inv = await _agent.GetInventoryAsync();
             if (inv is null)
@@ -111,6 +136,10 @@ public sealed partial class MainWindow : Window
                     : $"online - agent v{inv.agentVer}";
                 StatusText.Foreground =
                     new SolidColorBrush(Colors.Green);
+                if (!string.IsNullOrEmpty(inv.ip))
+                {
+                    AgentText.Text = $"{inv.ip}:{_agent.Port}";
+                }
                 MachineText.Text = string.IsNullOrEmpty(inv.ip)
                     ? inv.name
                     : $"{inv.name} ({inv.ip})";
@@ -454,16 +483,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ShowHide_Click(object sender, RoutedEventArgs e) =>
-        ToggleWindow();
+    private void ShowSettingsFromTray()
+    {
+        ShowSettings();
+        if (!_isVisible)
+        {
+            ToggleWindow();
+        }
+    }
 
-    private void Exit_Click(object sender, RoutedEventArgs e)
+    private void ExitApp()
     {
         App.HandleClosedEvents = false;
         _timer.Stop();
         _agent.Dispose();
         TrayIcon.Dispose();
         Close();
+        Application.Current.Exit();
     }
 }
 

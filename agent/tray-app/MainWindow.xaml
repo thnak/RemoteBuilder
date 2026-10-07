@@ -26,24 +26,24 @@
           <MenuFlyout>
             <MenuFlyoutItem
                 Text="Show / hide window"
-                Click="ShowHide_Click" />
+                Command="{x:Bind ShowHideCommand}" />
             <MenuFlyoutSeparator />
             <MenuFlyoutItem
                 Text="Refresh now"
-                Click="Refresh_Click" />
+                Command="{x:Bind RefreshCommand}" />
             <MenuFlyoutItem
                 Text="Check for updates"
-                Click="CheckUpdates_Click" />
+                Command="{x:Bind CheckUpdatesCommand}" />
             <MenuFlyoutItem
                 Text="Open releases page"
-                Click="OpenReleases_Click" />
+                Command="{x:Bind OpenReleasesCommand}" />
             <MenuFlyoutSeparator />
             <MenuFlyoutItem
                 Text="Settings…"
-                Click="ShowSettings_Click" />
+                Command="{x:Bind ShowSettingsCommand}" />
             <MenuFlyoutItem
                 Text="Exit"
-                Click="Exit_Click" />
+                Command="{x:Bind ExitCommand}" />
           </MenuFlyout>
         </tb:TaskbarIcon.ContextFlyout>
       </tb:TaskbarIcon>
@@ -95,7 +95,7 @@
           <TextBlock x:Name="JobsText" FontWeight="SemiBold" Text="—" />
         </StackPanel>
         <StackPanel>
-          <TextBlock Opacity="0.6" Text="ENDPOINT" />
+          <TextBlock Opacity="0.6" Text="REACHABLE AT" />
           <TextBlock x:Name="AgentText" FontWeight="SemiBold" Text="—" />
         </StackPanel>
       </StackPanel>
