@@ -308,6 +308,12 @@ public sealed partial class MainWindow : Window
             error = "Host is required.";
             return false;
         }
+        if (TraySettings.IsWildcardHost(host))
+        {
+            error = $"{host} is a listen address and cannot be connected "
+                + "to. Use 127.0.0.1 for this machine, or its LAN IP.";
+            return false;
+        }
         if (!int.TryParse(PortBox.Text.Trim(), out var port)
             || port < 1 || port > 65535)
         {

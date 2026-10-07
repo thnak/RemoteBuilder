@@ -63,6 +63,13 @@ public sealed class TraySettings
                 : host;
         }
 
+        // The agent listens on 0.0.0.0, but that address cannot be
+        // connected to; a saved wildcard host would leave the tray offline.
+        if (IsWildcardHost(settings.Host))
+        {
+            settings.Host = "127.0.0.1";
+        }
+
         if (settings.Port <= 0)
         {
             settings.Port =
@@ -81,6 +88,9 @@ public sealed class TraySettings
         settings.Resolve();
         return settings;
     }
+
+    public static bool IsWildcardHost(string host) =>
+        host.Trim().Trim('[', ']') is "0.0.0.0" or "::" or "*";
 
     /// Resolves the token actually used and records where it came from.
     public void Resolve()
