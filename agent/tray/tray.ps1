@@ -146,7 +146,10 @@ function Set-Info([string]$text, [bool]$ok) {
   } else {
     [System.Drawing.Color]::Firebrick
   }
-  $notify.Text = "RemoteBuilder - $text"
+  # NotifyIcon.Text is capped at 64 chars by WinForms
+  $tip = "RemoteBuilder - $text"
+  if ($tip.Length -gt 63) { $tip = $tip.Substring(0, 63) }
+  $notify.Text = $tip
 }
 
 function Refresh-All {
@@ -184,18 +187,22 @@ function Refresh-All {
     }
     $jobsView.Items.Add($item) | Out-Null
 
-    # balloon alerts on state transitions
+    # balloon alerts on state transitions (tips cap at 255 chars)
     $prev = $script:jobStates[$j.jobId]
     if ($null -eq $prev) {
       if ($j.status -eq "queued" -or $j.status -eq "running") {
+        $msg = "Job $($j.jobId) $($j.status): $($j.cmd)"
+        if ($msg.Length -gt 250) { $msg = $msg.Substring(0, 250) }
         $notify.ShowBalloonTip(2500, "RemoteBuilder", `
-          "Job $($j.jobId) $($j.status): $($j.cmd)", `
+          $msg, `
           [System.Windows.Forms.ToolTipIcon]::Info)
       }
     } elseif ($prev -ne $j.status) {
       if ($j.status -in @("done", "killed", "failed")) {
+        $msg = "Job $($j.jobId) $($j.status) (exit $($j.exitCode))"
+        if ($msg.Length -gt 250) { $msg = $msg.Substring(0, 250) }
         $notify.ShowBalloonTip(2500, "RemoteBuilder", `
-          "Job $($j.jobId) $($j.status) (exit $($j.exitCode))", `
+          $msg, `
           [System.Windows.Forms.ToolTipIcon]::Info)
       }
     }
