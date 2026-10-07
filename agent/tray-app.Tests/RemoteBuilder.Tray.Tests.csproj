@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests for the tray monitor's non-UI code. The WinUI project cannot be
+    referenced from a plain test host, so the UI-free sources are compiled
+    in directly.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>RemoteBuilder.Tray.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\tray-app\AgentClient.cs" Link="Tray\AgentClient.cs" />
+    <Compile Include="..\tray-app\Models.cs" Link="Tray\Models.cs" />
+    <Compile Include="..\tray-app\TraySettings.cs" Link="Tray\TraySettings.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>

@@ -9,3 +9,5 @@ agent/tray-app/obj/
 *.obj
 *.log
 *.tgz
+agent/tray-app.Tests/bin/
+agent/tray-app.Tests/obj/
