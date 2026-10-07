@@ -145,16 +145,116 @@ restart `agent\tray\tray.cmd`. Its **Check for updates** menu
 item reports when a newer release is out (and compares the
 local repo version against the GitHub release tag).
 
-## Tools
+## MCP tools
 
-| Tool | Purpose |
-| --- | --- |
-| `list_peers` | Live inventory of all configured peers (cores, load, memory, jobs) |
-| `sync` | Gitignore-aware whole-directory sync to a workspace. Peer can be a name, a list of names (fan-out), or `"auto"` (least-loaded reachable peer) |
-| `exec` | Start a command on a workspace. Fan-out to several peers returns one job id per peer |
-| `get_result` | Poll jobs until terminal state; returns status, exit code, log tail |
-| `kill` | Kill running jobs (whole process tree) |
-| `fetch_artifacts` | Pull files/directories from a peer workspace into `.remotebuilder-out/<peer>/<ws>` |
+The MCP server exposes six tools. `sync` and `exec` accept a
+**peer selector**: a single peer name, a list of names (fan-out —
+every peer runs it, results aggregated per peer), or `"auto"`
+(least-loaded reachable peer). `get_result` and `kill` address
+jobs by `{peer, jobId}` pairs, so fan-out results can be
+tracked individually.
+
+| Tool | Purpose | Key parameters |
+| --- | --- | --- |
+| `list_peers` | Live inventory of all configured peers | — |
+| `sync` | Gitignore-aware directory sync to a workspace | `peer`, `dir`, `ws`, `extraIgnore?` |
+| `exec` | Start a build/test command on a workspace | `peer`, `ws`, `cmd`, `cwd?`, `env?`, `timeoutSec?` |
+| `get_result` | Poll jobs to completion; returns status, exit code, log tail | `jobs`, `waitMs?`, `pollMs?`, `tailBytes?` |
+| `kill` | Kill running jobs (whole process tree) | `jobs` |
+| `fetch_artifacts` | Pull files/directories from a workspace to the local machine | `peer`, `ws`, `paths`, `outDir?` |
+
+### `list_peers`
+
+No parameters. Returns each peer with live inventory:
+
+```json
+{
+  "peers": [
+    { "name": "winagent", "host": "192.168.1.80", "port": 7333,
+      "inventory": { "name": "THNAK", "cores": 12, "cpuLoadPct": 4,
+                     "memFreeMB": 28554, "memTotalMB": 40347,
+                     "jobs": { "running": 0, "queued": 0 } } }
+  ]
+}
+```
+
+Unreachable peers appear with an `inventory.error` message
+instead of crashing the call.
+
+### `sync`
+
+- `peer` — peer name, list of names, or `"auto"`
+- `dir` — local directory to sync (absolute or relative)
+- `ws` — workspace name on the peer (1–64 chars)
+- `extraIgnore` — extra gitignore-style patterns to skip
+
+Walks `dir` (honoring `.gitignore` at every level, skipping
+`.git`), hashes every file (sha1), compares with the peer's
+manifest, and uploads only changed/new files. Files deleted
+locally are pruned on the peer. Returns per-peer
+`{applied, bytes, manifestFiles, pruned, changed}`.
+
+### `exec`
+
+- `peer` — peer name, list of names, or `"auto"`
+- `ws` — workspace to run in (must have been synced first)
+- `cmd` — command line; runs via `cmd.exe /d /s /c` with
+  `cwd` inside the workspace
+- `cwd` — subdirectory of the workspace (optional)
+- `env` — extra environment variables merged into the job
+- `timeoutSec` — kill the whole process tree after this many
+  seconds (`0` = no timeout, default)
+
+Returns one `jobId` per peer:
+
+```json
+{ "ws": "app", "cmd": "npm run build",
+  "results": [{ "jobId": "j1" }] }
+```
+
+Jobs run inside a **Windows Job Object** with kill-on-close,
+so kill/timeout take down the entire process tree. stdout+stderr
+go to `<ws>/jobs/<id>/log.txt`. Up to `--maxjobs` jobs run
+concurrently per agent (FIFO queue beyond that).
+
+### `get_result`
+
+- `jobs` — array of `{peer, jobId}` (the ids `exec` returned)
+- `waitMs` — how long to keep polling before returning
+  (default `0` = return current state immediately)
+- `pollMs` — poll interval (default `500`, minimum `50`)
+- `tailBytes` — how many log bytes to return (default `8192`)
+
+For each job returns `status` (`queued`/`running`/`done`/
+`killed`/`failed`), `exitCode`, `logBytes`, and the last
+`tailBytes` of the log (`log` is `null` if the job is still
+running when `waitMs` elapses).
+
+### `kill`
+
+- `jobs` — array of `{peer, jobId}`
+
+Kills each running job's whole process tree. Returns
+`{peer, jobId, killed}` per job (with `error` if it failed).
+
+### `fetch_artifacts`
+
+- `peer` — a single peer name (no fan-out, no `"auto"`)
+- `ws` — workspace to fetch from
+- `paths` — files or directories inside the workspace
+- `outDir` — local destination (default
+  `.remotebuilder-out/<peer>/<ws>`)
+
+Streams a tar of the requested paths from the peer and writes
+them locally. Returns the fetched file list with sizes:
+
+```json
+{ "peer": "winagent", "outDir": ".remotebuilder-out/winagent/app",
+  "files": [{ "path": "dist/app.exe", "size": 40960 }] }
+```
+
+Paths are validated: absolute paths and `..` escapes are
+rejected.
 
 ## How sync works
 
