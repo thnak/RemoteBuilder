@@ -108,6 +108,41 @@ build machines — e.g. install the client on the Linux box
 (`npm i -g remotebuilder`), run the agent on each Windows box, then
 `remotebuilder pair <name> <windows-ip>` from the Linux box.
 
+## Updating
+
+Check for updates (client on npm, agent on GitHub Releases):
+
+```
+remotebuilder update
+```
+
+Install the newest client (add `--beta` for the beta channel):
+
+```
+remotebuilder update --install
+remotebuilder update --install --beta
+```
+
+When a newer **agent** is available, download the new `rbagent.exe`
+from the [releases page](https://github.com/thnak/RemoteBuilder/releases),
+then restart it — either re-run `rbagent`, or (if installed as a
+service) stop any running `rbagent` and run the elevated installer
+again:
+
+```powershell
+cd agent\service
+.\install-service.ps1
+```
+
+The tray app also has **Check for updates** and
+**Open releases page** in its menu.
+
+The tray app itself lives in the repo checkout, so it updates
+with the repo: `git pull` in the RemoteBuilder directory, then
+restart `agent\tray\tray.cmd`. Its **Check for updates** menu
+item reports when a newer release is out (and compares the
+local repo version against the GitHub release tag).
+
 ## Tools
 
 | Tool | Purpose |

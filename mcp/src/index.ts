@@ -12,8 +12,14 @@ import {
   savePeers,
 } from "./peer.js";
 import { registerTools } from "./tools.js";
+import {
+  checkUpdates,
+  cmpVer,
+  installUpdate,
+  localVersion,
+} from "./update.js";
 
-const version = "0.1.0";
+const version = localVersion();
 
 function printHelp(): void {
   console.log(`RemoteBuilder ${version} — offload builds to Windows machines on your LAN
@@ -24,6 +30,8 @@ usage:
       [--port N]                       (default port 7333)
   remotebuilder setup                  add a peer by prompting for name/host/port/token
   remotebuilder list                   list configured peers
+  remotebuilder update [--install] [--beta]
+                                       check for client + agent updates
   remotebuilder help                   show this help
 
 peers file: ${defaultPeersFile()} (override with RB_PEERS_FILE)`);
@@ -121,6 +129,51 @@ async function cmdList(): Promise<void> {
   }
 }
 
+async function cmdUpdate(
+  install: boolean,
+  beta: boolean,
+): Promise<void> {
+  const check = await checkUpdates();
+
+  console.log(`remotebuilder client: local ${check.local}`);
+  if (check.onNpm) {
+    const tags = `latest ${check.latest}${
+      check.beta ? `, beta ${check.beta}` : ""
+    }`;
+    console.log(`  npm: ${tags}`);
+    const target = beta ? check.beta : check.latest;
+    if (target && cmpVer(target, check.local) > 0) {
+      console.log(`  update available: ${target}`);
+      if (install) {
+        console.log(
+          `installing remotebuilder@${beta ? "beta" : "latest"} ...`,
+        );
+        await installUpdate(beta ? "beta" : "latest");
+        console.log("done - restart any running MCP clients");
+      }
+    } else {
+      console.log("  client is up to date");
+    }
+  } else {
+    console.log("  npm: unreachable or not published yet");
+  }
+
+  console.log(`agent: local ${check.agentVer ?? "unknown"}`);
+  if (check.agentLatest) {
+    console.log(`  latest release: ${check.agentLatest}`);
+    if (check.agentVer && cmpVer(check.agentLatest, check.agentVer) > 0) {
+      console.log(
+        `  agent update available: ${check.agentExeUrl ?? check.releasesUrl}`,
+      );
+      console.log("  then restart the agent (install-service.ps1 or rbagent)");
+    } else {
+      console.log("  agent is up to date");
+    }
+  } else {
+    console.log("  release check failed (offline?)");
+  }
+}
+
 function parsePort(argv: string[]): number {
   const idx = argv.indexOf("--port");
   if (idx === -1) return 7333;
@@ -142,6 +195,20 @@ async function main(): Promise<void> {
   }
   if (cmd === "list") {
     await cmdList();
+    return;
+  }
+  if (cmd === "update") {
+    let install = false;
+    let beta = false;
+    for (const a of argv.slice(1)) {
+      if (a === "--install") install = true;
+      else if (a === "--beta") beta = true;
+      else {
+        console.error(`unknown option: ${a}`);
+        process.exit(2);
+      }
+    }
+    await cmdUpdate(install, beta);
     return;
   }
   if (cmd === "setup") {

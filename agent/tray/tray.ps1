@@ -25,6 +25,7 @@ $script:token = if ($env:RB_AGENT_TOKEN) {
   if (Test-Path $tf) { (Get-Content $tf -Raw).Trim() } else { "" }
 }
 $script:base = "http://$AgentHost`:$AgentPort"
+$script:releasesUrl = "https://github.com/thnak/RemoteBuilder/releases"
 $script:jobStates = @{}   # jobId -> last known status
 $script:logOffset = @{}   # jobId -> bytes tailed so far
 
@@ -70,6 +71,9 @@ $notify.Visible = $true
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $mShow = $menu.Items.Add("Show jobs", $null, { Show-Form })
 $mRefresh = $menu.Items.Add("Refresh now", $null, { Refresh-All })
+$mUpdate = $menu.Items.Add("Check for updates", $null, { Check-Update })
+$mReleases = $menu.Items.Add(
+  "Open releases page", $null, { Start-Process $script:releasesUrl })
 $menu.Items.Add("-")
 $mExit = $menu.Items.Add("Exit", $null, { Exit-App })
 $notify.ContextMenuStrip = $menu
@@ -150,6 +154,60 @@ function Set-Info([string]$text, [bool]$ok) {
   $tip = "RemoteBuilder - $text"
   if ($tip.Length -gt 63) { $tip = $tip.Substring(0, 63) }
   $notify.Text = $tip
+}
+
+function Check-Update {
+  $lines = @()
+  try {
+    $reg = Invoke-RestMethod `
+      -Uri "https://registry.npmjs.org/remotebuilder" `
+      -TimeoutSec 10 -UseBasicParsing
+    $line = "client: npm latest $($reg.'dist-tags'.latest)"
+    if ($reg.'dist-tags'.beta) {
+      $line += " (beta $($reg.'dist-tags'.beta))"
+    }
+    $lines += $line
+  } catch {
+    $lines += "client: npm check failed (offline or not published yet)"
+  }
+  try {
+    $rel = Invoke-RestMethod `
+      -Uri "https://api.github.com/repos/thnak/RemoteBuilder/releases/latest" `
+      -TimeoutSec 10 -UseBasicParsing
+    $inv = Get-AgentJson "/inventory"
+    if (-not $inv) {
+      $lines += "agent: latest release $($rel.tag_name)"
+    } else {
+      $lines += "agent: this $($inv.agentVer), latest $($rel.tag_name)"
+      if ($rel.tag_name -ne "v$($inv.agentVer)") {
+        $lines += "AGENT UPDATE AVAILABLE:"
+        $lines += $rel.html_url
+      } else {
+        $lines += "agent is up to date"
+      }
+    }
+    # the tray app itself ships with the repo checkout
+    $repoRoot = Split-Path -Parent `
+      (Split-Path -Parent $PSScriptRoot)
+    $pkgFile = Join-Path $repoRoot "package.json"
+    if (Test-Path $pkgFile) {
+      $localVer = (
+        Get-Content $pkgFile -Raw | ConvertFrom-Json
+      ).version
+      if ($rel.tag_name -ne "v$localVer") {
+        $lines += "tray app: local $localVer, latest $($rel.tag_name)"
+        $lines += "TRAY UPDATE: git pull in $repoRoot"
+      } else {
+        $lines += "tray app: $localVer (up to date)"
+      }
+    }
+  } catch {
+    $lines += "agent: release check failed (offline?)"
+  }
+  $msg = $lines -join "`n"
+  if ($msg.Length -gt 250) { $msg = $msg.Substring(0, 250) }
+  [System.Windows.Forms.MessageBox]::Show(
+    $form, $msg, "RemoteBuilder - check for updates") | Out-Null
 }
 
 function Refresh-All {
