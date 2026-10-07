@@ -6,7 +6,10 @@ namespace RemoteBuilder.Tray;
 
 public sealed class AgentClient : IDisposable
 {
-    private readonly HttpClient _http = new();
+    // The agent is always on the local machine or LAN; routing it through
+    // an HTTP_PROXY / system proxy only breaks the connection.
+    private readonly HttpClient _http =
+        new(new HttpClientHandler { UseProxy = false });
 
     public string Host { get; }
     public int Port { get; }
