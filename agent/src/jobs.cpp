@@ -22,6 +22,18 @@ std::string jobStatusName(int status) {
   return "unknown";
 }
 
+long long logFileSize(const std::filesystem::path& p) {
+  WIN32_FILE_ATTRIBUTE_DATA fa{};
+  if (!GetFileAttributesExW(p.wstring().c_str(),
+                            GetFileExInfoStandard, &fa)) {
+    return -1;
+  }
+  ULARGE_INTEGER sz;
+  sz.HighPart = fa.nFileSizeHigh;
+  sz.LowPart = fa.nFileSizeLow;
+  return static_cast<long long>(sz.QuadPart);
+}
+
 std::string buildEnvBlock(
     const std::map<std::string, std::string>& overrides) {
   std::map<std::string, std::string> env;
@@ -297,18 +309,49 @@ bool JobRunner::get(const std::string& id, JsonValue& out,
   v.strV = job.endedAt;
   out.objV["endedAt"] = v;
   v.type = JsonValue::Number;
-  long long total = 0;
-  WIN32_FILE_ATTRIBUTE_DATA fa{};
-  if (GetFileAttributesExW(
-          std::filesystem::u8path(job.logPath).wstring().c_str(),
-          GetFileExInfoStandard, &fa)) {
-    ULARGE_INTEGER sz;
-    sz.HighPart = fa.nFileSizeHigh;
-    sz.LowPart = fa.nFileSizeLow;
-    total = static_cast<long long>(sz.QuadPart);
-  }
-  v.numV = static_cast<double>(total);
+  const long long total = logFileSize(
+      std::filesystem::u8path(job.logPath));
+  v.numV = static_cast<double>(total < 0 ? 0 : total);
   out.objV["logBytes"] = v;
+  return true;
+}
+
+bool JobRunner::list(JsonValue& out, std::string& err) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  out.type = JsonValue::Object;
+  JsonValue arr;
+  arr.type = JsonValue::Array;
+  for (const auto& [id, job] : jobs_) {
+    JsonValue j;
+    j.type = JsonValue::Object;
+    JsonValue v;
+    v.type = JsonValue::String;
+    v.strV = job.id;
+    j.objV["jobId"] = v;
+    v.strV = job.ws;
+    j.objV["ws"] = v;
+    v.strV = job.cmd;
+    j.objV["cmd"] = v;
+    v.strV = jobStatusName(job.status.load());
+    j.objV["status"] = v;
+    v.type = JsonValue::Number;
+    v.numV = static_cast<double>(job.exitCode);
+    j.objV["exitCode"] = v;
+    v.numV = static_cast<double>(job.timeoutSec);
+    j.objV["timeoutSec"] = v;
+    v.type = JsonValue::String;
+    v.strV = job.startedAt;
+    j.objV["startedAt"] = v;
+    v.strV = job.endedAt;
+    j.objV["endedAt"] = v;
+    v.type = JsonValue::Number;
+    const long long total = logFileSize(
+        std::filesystem::u8path(job.logPath));
+    v.numV = static_cast<double>(total < 0 ? 0 : total);
+    j.objV["logBytes"] = v;
+    arr.arrV.push_back(j);
+  }
+  out.objV["jobs"] = arr;
   return true;
 }
 

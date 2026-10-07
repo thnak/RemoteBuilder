@@ -79,6 +79,22 @@ with kill-on-close, so kill/timeout terminate the entire process tree. A
 single dispatcher thread runs up to `--maxjobs` jobs concurrently (FIFO
 otherwise). stdout+stderr go to `<ws>/jobs/<id>/log.txt`.
 
+## GET /jobs
+
+All jobs the agent knows about (insertion order):
+
+```json
+{
+  "jobs": [
+    {
+      "jobId": "j1", "ws": "app", "cmd": "npm run build",
+      "status": "done", "exitCode": 0, "timeoutSec": 0,
+      "startedAt": "...", "endedAt": "...", "logBytes": 4096
+    }
+  ]
+}
+```
+
 ## GET /jobs/<id>
 
 ```json

@@ -214,6 +214,12 @@ export class PeerClient {
     return (await res.json()) as JobStatus;
   }
 
+  async listJobs(): Promise<{ jobs: JobStatus[] }> {
+    const res = await this.req("GET", "/jobs");
+    assertOk(res, this.name);
+    return (await res.json()) as { jobs: JobStatus[] };
+  }
+
   async killJob(jobId: string): Promise<void> {
     const res = await this.req("DELETE", `/jobs/${encodeURIComponent(jobId)}`);
     assertOk(res, this.name);

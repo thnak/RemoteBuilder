@@ -40,6 +40,7 @@ class JobRunner {
   std::string enqueue(const std::string& ws, const JsonValue& request,
                         std::string& err);
   bool get(const std::string& id, JsonValue& out, std::string& err);
+  bool list(JsonValue& out, std::string& err);
   bool kill(const std::string& id, std::string& err);
   bool readLog(const std::string& id, long long offset, std::string& out,
                  long long& total, std::string& err);

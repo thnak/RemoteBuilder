@@ -6,3 +6,4 @@ agent/build/
 *.exe
 *.obj
 *.log
+*.tgz

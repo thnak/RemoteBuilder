@@ -201,6 +201,17 @@ int runServer() {
                      "\",\"status\":\"queued\"}");
   });
 
+  svr.Get("/jobs", [](const httplib::Request&, httplib::Response& res) {
+    JsonValue out;
+    std::string err;
+    if (!g_state.jobs->list(out, err)) {
+      jsonResponse(res, 500,
+                   "{\"error\":\"" + jsonEscape(err) + "\"}");
+      return;
+    }
+    res.set_content(stringifyJson(out), "application/json");
+  });
+
   svr.Get(R"(/jobs/([^/]+))",
           [](const httplib::Request& req, httplib::Response& res) {
             const std::string id = req.matches[1];

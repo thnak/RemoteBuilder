@@ -68,29 +68,46 @@ async function cmdPair(
 }
 
 async function cmdSetup(): Promise<void> {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  try {
-    const name = (await rl.question("peer name: ")).trim();
-    const host = (await rl.question("host (IP or hostname): ")).trim();
-    const portRaw = (await rl.question("port [7333]: ")).trim();
-    const port = portRaw ? Number(portRaw) : 7333;
-    const token = (
-      await rl.question("token (agent prints it on first run): ")
-    ).trim();
-    if (!name || !host || !token) {
-      throw new Error("name, host and token are required");
+  let name = "";
+  let host = "";
+  let portRaw = "";
+  let token = "";
+  if (process.stdin.isTTY) {
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    try {
+      name = (await rl.question("peer name: ")).trim();
+      host = (await rl.question("host (IP or hostname): ")).trim();
+      portRaw = (await rl.question("port [7333]: ")).trim();
+      token = (
+        await rl.question("token (agent prints it on first run): ")
+      ).trim();
+    } finally {
+      rl.close();
     }
-    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-      throw new Error("bad port");
+  } else {
+    // non-TTY stdin: read every piped answer as a line
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk as Buffer);
     }
-    const file = await addPeer({ name, host, port, token });
-    console.log(`saved "${name}" to ${file}`);
-  } finally {
-    rl.close();
+    const lines = Buffer.concat(chunks)
+      .toString("utf8")
+      .split(/\r?\n/)
+      .map((s) => s.trim());
+    [name, host, portRaw, token] = lines;
   }
+  const port = portRaw ? Number(portRaw) : 7333;
+  if (!name || !host || !token) {
+    throw new Error("name, host and token are required");
+  }
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error("bad port");
+  }
+  const file = await addPeer({ name, host, port, token });
+  console.log(`saved "${name}" to ${file}`);
 }
 
 async function cmdList(): Promise<void> {

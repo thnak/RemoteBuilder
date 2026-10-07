@@ -48,6 +48,31 @@ binary**, no compiler needed:
 First run generates a token and stores it in
 `%LOCALAPPDATA%\rb-agent\token.txt`, then listens on port 7333.
 
+To run it permanently as a Windows service (auto-start, survives
+reboots) with the firewall port opened, run in an **elevated**
+PowerShell:
+
+```powershell
+cd agent\service
+.\install-service.ps1            # -Name/-Port/-Root to customize
+```
+
+For a quick start, just run `rbagent` (or `rbagent --pair` while
+registering a peer).
+
+## System tray
+
+`agent/tray/tray.cmd` opens a tray monitor for the agent:
+
+- live inventory (cores, load, memory, running/queued jobs)
+- job list with status, exit code and log size (progress)
+- balloon alerts when a job starts or finishes
+- log tail pane for the selected job (auto-follows the log)
+
+It talks to `127.0.0.1:7333` by default; configure with
+`RB_AGENT_HOST`, `RB_AGENT_PORT`, `RB_AGENT_TOKEN` (the token
+defaults to `%LOCALAPPDATA%\rb-agent\token.txt`).
+
 ## Register a peer (one command)
 
 On the build machine, run the agent in pairing mode:
@@ -76,6 +101,12 @@ Alternatives:
 
 Pairing mode only opens `GET /pair` on the LAN while it runs; stop it
 (Ctrl+C) when done. Without `--pair` every endpoint requires the token.
+
+The client runs on any OS and the agent on Windows, so a typical
+fleet is a Linux/macOS dev machine driving one or more Windows
+build machines — e.g. install the client on the Linux box
+(`npm i -g remotebuilder`), run the agent on each Windows box, then
+`remotebuilder pair <name> <windows-ip>` from the Linux box.
 
 ## Tools
 
