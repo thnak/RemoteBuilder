@@ -13,6 +13,10 @@
   The token is generated here (crypto RNG) and handed to the service with
   --token, so both the service and the tray monitors read the same value
   instead of depending on where a service account's %LOCALAPPDATA% lands.
+
+  An existing token is reused (taken from the service's own --token, or
+  from a token file) so reinstalling or upgrading keeps already-paired
+  peers valid. Pass -Token to set one explicitly.
 #>
 param(
   [Parameter(Mandatory = $true)][string]$AppDir,
@@ -22,6 +26,7 @@ param(
   [Parameter(Mandatory = $true)][string]$CommonTokenPath,
   [int]$Port = 7333,
   [string]$ServiceName = 'RemoteBuilderAgent',
+  [string]$Token = '',
   [switch]$Remove
 )
 
@@ -39,6 +44,23 @@ function New-Token {
   $bytes = New-Object byte[] 16
   [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
   return (-join ($bytes | ForEach-Object { '{0:x2}' -f $_ }))
+}
+
+function Get-ExistingToken {
+  # Prefer the token the service is already running with, then any token
+  # file that is already on disk.
+  $svc = Get-CimInstance Win32_Service `
+    -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+  if ($svc -and $svc.PathName -match '--token\s+(\S+)') {
+    return $Matches[1]
+  }
+  foreach ($path in @($UserTokenPath, $CommonTokenPath)) {
+    if (Test-Path -LiteralPath $path) {
+      $existing = (Get-Content -LiteralPath $path -Raw).Trim()
+      if ($existing) { return $existing }
+    }
+  }
+  return ''
 }
 
 function Remove-ServiceIfPresent {
@@ -68,7 +90,17 @@ if ($Remove) {
   exit 0
 }
 
-$token = New-Token
+# Resolve the token before touching the service, so an existing one can be
+# reused and paired peers keep working across reinstalls.
+$token = $Token
+if (-not $token) { $token = Get-ExistingToken }
+if ($token) {
+  Log "reusing the existing token"
+} else {
+  $token = New-Token
+  Log "generated a new token"
+}
+
 foreach ($path in @($UserTokenPath, $CommonTokenPath)) {
   $dir = Split-Path -Parent $path
   if (-not (Test-Path $dir)) {
