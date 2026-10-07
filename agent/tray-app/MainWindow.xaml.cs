@@ -4,7 +4,6 @@ using H.NotifyIcon;
 using H.NotifyIcon.Core;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -14,7 +13,8 @@ namespace RemoteBuilder.Tray;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly AgentClient _agent = new();
+    private TraySettings _settings;
+    private AgentClient _agent;
     private readonly UpdateChecker _updater = new();
     private readonly DispatcherQueueTimer _timer;
     private readonly Dictionary<string, string> _seen = new();
@@ -29,18 +29,20 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         SetWindowSize(780, 580);
 
+        _settings = TraySettings.Load();
+        _agent = new AgentClient(_settings);
+
         var iconPath = Path.Combine(
             AppContext.BaseDirectory, "Assets", "tray.ico");
         if (File.Exists(iconPath))
         {
             TrayIcon.Icon = new System.Drawing.Icon(iconPath);
         }
-        TrayIcon.LeftClickCommand =
-            new RelayCommand(ToggleWindow);
+        TrayIcon.LeftClickCommand = new RelayCommand(ToggleWindow);
 
         var queue = DispatcherQueue.GetForCurrentThread();
         _timer = queue.CreateTimer();
-        _timer.Interval = TimeSpan.FromSeconds(2);
+        _timer.Interval = TimeSpan.FromSeconds(_settings.PollSeconds);
         _timer.Tick += (_, _) => _ = PollAsync();
         _timer.Start();
         _ = PollAsync();
@@ -80,6 +82,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // ---------- polling ----------
+
     private async Task PollAsync()
     {
         if (_polling)
@@ -89,6 +93,8 @@ public sealed partial class MainWindow : Window
         _polling = true;
         try
         {
+            AgentText.Text = $"{_agent.Host}:{_agent.Port}";
+
             var inv = await _agent.GetInventoryAsync();
             if (inv is null)
             {
@@ -100,7 +106,9 @@ public sealed partial class MainWindow : Window
             }
             else
             {
-                StatusText.Text = $"online - agent v{inv.version}";
+                StatusText.Text = string.IsNullOrWhiteSpace(inv.agentVer)
+                    ? "online"
+                    : $"online - agent v{inv.agentVer}";
                 StatusText.Foreground =
                     new SolidColorBrush(Colors.Green);
                 MachineText.Text = string.IsNullOrEmpty(inv.ip)
@@ -114,7 +122,6 @@ public sealed partial class MainWindow : Window
                     : "-";
                 JobsText.Text =
                     $"{inv.jobs.running} running / {inv.jobs.queued} queued";
-                AgentText.Text = inv.os;
                 TrayIcon!.ToolTipText = MakeTooltip(inv);
             }
 
@@ -227,6 +234,160 @@ public sealed partial class MainWindow : Window
             null, LogScroll.ScrollableHeight, null);
     }
 
+    // ---------- settings ----------
+
+    private void ShowSettings_Click(object sender, RoutedEventArgs e) =>
+        ShowSettings();
+
+    private void ShowSettings()
+    {
+        HostBox.Text = _settings.Host;
+        PortBox.Text = _settings.Port.ToString();
+        IntervalBox.Text = _settings.PollSeconds.ToString();
+        TokenBox.Password = "";
+        TokenHintText.Text = _settings.HasExplicitToken
+            ? $"Using the token saved in settings ({_settings.MaskedToken})."
+            : $"Using the token from {_settings.TokenSource}: "
+              + $"{_settings.MaskedToken}. Leave blank to keep it.";
+        TestResultText.Text = "";
+        SaveMessageText.Text = "";
+        AutostartCheck.IsChecked = StartupShortcut.IsEnabled();
+
+        MainPanel.Visibility = Visibility.Collapsed;
+        SettingsPanel.Visibility = Visibility.Visible;
+        _ = RefreshServiceStatusAsync();
+    }
+
+    private void CancelSettings_Click(object sender, RoutedEventArgs e) =>
+        ShowMain();
+
+    private void ShowMain()
+    {
+        SettingsPanel.Visibility = Visibility.Collapsed;
+        MainPanel.Visibility = Visibility.Visible;
+    }
+
+    private bool TryBuildFromForm(
+        out TraySettings candidate, out string error)
+    {
+        candidate = new TraySettings();
+        error = "";
+
+        var host = HostBox.Text.Trim();
+        if (host.Length == 0)
+        {
+            error = "Host is required.";
+            return false;
+        }
+        if (!int.TryParse(PortBox.Text.Trim(), out var port)
+            || port < 1 || port > 65535)
+        {
+            error = "Port must be a number between 1 and 65535.";
+            return false;
+        }
+        if (!int.TryParse(IntervalBox.Text.Trim(), out var seconds)
+            || seconds < 1 || seconds > 3600)
+        {
+            error = "Refresh interval must be between 1 and 3600 seconds.";
+            return false;
+        }
+
+        candidate.Host = host;
+        candidate.Port = port;
+        candidate.PollSeconds = seconds;
+        candidate.StartWithWindows = AutostartCheck.IsChecked == true;
+        candidate.Token = TokenBox.Password.Trim();
+        candidate.Resolve();
+        return true;
+    }
+
+    private async void Save_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryBuildFromForm(out var candidate, out var error))
+        {
+            SaveMessageText.Text = error;
+            return;
+        }
+
+        try
+        {
+            StartupShortcut.SetEnabled(candidate.StartWithWindows);
+        }
+        catch (Exception ex)
+        {
+            SaveMessageText.Text = $"Startup shortcut: {ex.Message}";
+        }
+
+        _settings = candidate;
+        _settings.Save();
+        ApplySettings();
+        await PollAsync();
+        ShowMain();
+    }
+
+    private void ApplySettings()
+    {
+        _agent.Dispose();
+        _agent = new AgentClient(_settings);
+        _timer.Interval = TimeSpan.FromSeconds(_settings.PollSeconds);
+    }
+
+    private async void Test_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryBuildFromForm(out var candidate, out var error))
+        {
+            TestResultText.Text = error;
+            return;
+        }
+
+        TestResultText.Text = "testing…";
+        using var probe = new AgentClient(candidate);
+        var ok = await Task.Run(probe.Reachable);
+        TestResultText.Text = ok
+            ? $"OK - {candidate.Endpoint} answered using token "
+              + $"{candidate.MaskedToken}."
+            : $"No response from {candidate.Endpoint} - wrong port, or the "
+              + "token does not match the agent's.";
+    }
+
+    private async Task RefreshServiceStatusAsync()
+    {
+        var state = await Task.Run(AgentService.State);
+        ServiceStatusText.Text = state == "not installed"
+            ? $"{AgentService.DisplayName} service is not installed."
+            : $"{AgentService.DisplayName} service is {state}.";
+    }
+
+    private async void ServiceStart_Click(
+        object sender, RoutedEventArgs e) =>
+        await ControlServiceAsync(AgentService.Start);
+
+    private async void ServiceStop_Click(
+        object sender, RoutedEventArgs e) =>
+        await ControlServiceAsync(AgentService.Stop);
+
+    private async void ServiceRestart_Click(
+        object sender, RoutedEventArgs e) =>
+        await ControlServiceAsync(AgentService.Restart);
+
+    private async Task ControlServiceAsync(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            ServiceStatusText.Text = $"Could not control the service: "
+                + ex.Message;
+            return;
+        }
+        await Task.Delay(2500);
+        await RefreshServiceStatusAsync();
+    }
+
+    // ---------- commands ----------
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         RefreshButton.IsEnabled = false;
@@ -300,6 +461,7 @@ public sealed partial class MainWindow : Window
     {
         App.HandleClosedEvents = false;
         _timer.Stop();
+        _agent.Dispose();
         TrayIcon.Dispose();
         Close();
     }

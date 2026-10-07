@@ -94,17 +94,31 @@ and gives you:
 - balloon alerts when a job starts or finishes
 - log tail pane for the selected job (auto-follows the log)
 - **Check for updates** and **Open releases page** menu items
+- a **Settings** page (window button, or the tray menu)
 
 Left-click the icon to toggle the window; right-click for the menu.
 
-A dependency-free PowerShell fallback lives in `agent/tray/tray.cmd`
-(same features, no build step) for machines where you'd rather not run
-the installer.
+The Settings page changes everything at runtime — no rebuild, no
+reinstall:
 
-Both talk to `127.0.0.1:7333` by default; configure with
-`RB_AGENT_HOST`, `RB_AGENT_PORT`, `RB_AGENT_TOKEN` (the token defaults
-to `%LOCALAPPDATA%\rb-agent\token.txt`, then
+- agent **host**, **port** and **refresh interval**
+- an explicit **token**, or leave it blank to keep using the shared
+  token file
+- **Test connection** to verify an endpoint and token before saving
+- **start / stop / restart** for the agent service (raises one UAC
+  prompt)
+- whether the tray monitor starts with the session
+
+Settings are stored in `%LOCALAPPDATA%\rb-agent\tray-settings.json`.
+Precedence is: saved setting, then `RB_AGENT_HOST` / `RB_AGENT_PORT` /
+`RB_AGENT_TOKEN`, then the defaults (`127.0.0.1:7333`, token read from
+`%LOCALAPPDATA%\rb-agent\token.txt` and then
 `%ProgramData%\rb-agent\token.txt`).
+
+A dependency-free PowerShell fallback lives in `agent/tray/tray.cmd`
+(same monitor features, no build step) for machines where you'd rather
+not run the installer. It reads the same environment variables and token
+files, but not the tray settings file.
 
 ## Register a peer (one command)
 

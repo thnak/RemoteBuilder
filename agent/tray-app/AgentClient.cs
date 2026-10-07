@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace RemoteBuilder.Tray;
 
-public sealed class AgentClient
+public sealed class AgentClient : IDisposable
 {
     private readonly HttpClient _http = new();
 
@@ -12,37 +12,17 @@ public sealed class AgentClient
     public int Port { get; }
     public string Token { get; }
 
-    public AgentClient()
+    public AgentClient(TraySettings settings)
     {
-        Host = Environment.GetEnvironmentVariable("RB_AGENT_HOST") ?? "127.0.0.1";
-        Port = int.Parse(
-            Environment.GetEnvironmentVariable("RB_AGENT_PORT") ?? "7333");
-
-        var token = Environment.GetEnvironmentVariable("RB_AGENT_TOKEN");
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            token = ReadToken(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.LocalApplicationData));
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                token = ReadToken(
-                    Environment.GetFolderPath(
-                        Environment.SpecialFolder.CommonApplicationData));
-            }
-        }
-        Token = token;
+        Host = settings.Host;
+        Port = settings.Port;
+        Token = settings.EffectiveToken;
+        _http.Timeout = TimeSpan.FromSeconds(8);
         _http.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", Token);
     }
 
-    private static string ReadToken(string baseDir)
-    {
-        var file = Path.Combine(baseDir, "rb-agent", "token.txt");
-        return File.Exists(file)
-            ? File.ReadAllText(file).Trim()
-            : "";
-    }
+    public void Dispose() => _http.Dispose();
 
     private string Base => $"http://{Host}:{Port}";
 

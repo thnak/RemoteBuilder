@@ -10,7 +10,7 @@ public sealed class Inventory
     public JobCounts jobs { get; set; } = new();
     public string os { get; set; } = "";
     public string ip { get; set; } = "";
-    public string version { get; set; } = "";
+    public string agentVer { get; set; } = "";
 }
 
 public sealed class JobCounts
